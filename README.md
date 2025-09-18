@@ -1,0 +1,1 @@
+# CrewAI A2A Adapter
