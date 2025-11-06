@@ -1,0 +1,82 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crewai-a2a-adapter"
+version = "0.1.0"
+description = "A powerful adapter enabling CrewAI to integrate with A2A protocol agents"
+readme = "README.md"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["crewai", "a2a", "agents", "ai", "automation", "multi-agent"]
+requires-python = ">=3.9"
+dependencies = [
+    "crewai>=0.165.0",
+    "a2a-sdk>=0.2.8",
+    "httpx>=0.28.0",
+    "pydantic>=2.0.0",
+    "jsonref>=1.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=24.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/crewai-a2a-adapter"
+Documentation = "https://github.com/yourusername/crewai-a2a-adapter#readme"
+Repository = "https://github.com/yourusername/crewai-a2a-adapter.git"
+"Bug Reports" = "https://github.com/yourusername/crewai-a2a-adapter/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+asyncio_mode = "auto"
