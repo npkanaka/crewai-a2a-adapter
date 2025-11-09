@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import inspect
 import os
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
@@ -306,7 +307,11 @@ class A2AToolDiscovery:
 
         for params in self.server_params:
             try:
-                async with a2a_session(params, self.connect_timeout) as (session, tools):
+                context_manager = a2a_session(params, self.connect_timeout)
+                if inspect.isawaitable(context_manager):
+                    context_manager = await context_manager
+
+                async with context_manager as (session, tools):
                     for tool in tools:
                         adapted_tool = await self.adapter.async_adapt(tool, params)
                         adapted_tools.append(adapted_tool)

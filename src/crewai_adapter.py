@@ -7,6 +7,7 @@ enabling seamless integration between A2A agents and CrewAI workflows.
 
 import asyncio
 import logging
+import threading
 from typing import Any, Type
 
 import jsonref
@@ -17,6 +18,7 @@ from .a2a_core import (
     A2ATool,
     A2ASession,
     ToolAdapter,
+    A2AToolDiscovery,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,15 +164,33 @@ class A2ACrewAIAdapter(ToolAdapter):
                 )
 
                 try:
-                    # Get or create event loop
+                    # Try to reuse an active event loop when possible
                     try:
-                        loop = asyncio.get_running_loop()
-                        # We're already in an async context, create a task
-                        future = asyncio.ensure_future(self._execute_async(*args, **kwargs))
-                        return asyncio.run_coroutine_threadsafe(future, loop).result()
+                        asyncio.get_running_loop()
                     except RuntimeError:
-                        # No event loop running, create one
+                        # No event loop running, execute directly
                         return asyncio.run(self._execute_async(*args, **kwargs))
+
+                    # We are inside an active loop; run the async work in a helper thread
+                    result_container: dict[str, Any] = {}
+                    error_container: dict[str, BaseException] = {}
+
+                    def runner() -> None:
+                        try:
+                            result_container["value"] = asyncio.run(
+                                self._execute_async(*args, **kwargs)
+                            )
+                        except BaseException as runner_exc:  # noqa: BLE001
+                            error_container["error"] = runner_exc
+
+                    thread = threading.Thread(target=runner, daemon=True)
+                    thread.start()
+                    thread.join()
+
+                    if error_container:
+                        raise error_container["error"]
+
+                    return result_container.get("value")
 
                 except Exception as e:
                     error_msg = f"Error in sync wrapper for A2A tool '{self._tool_name}': {str(e)}"
@@ -272,8 +292,6 @@ class CrewAIToolkit:
         """
         if adapter is None:
             adapter = A2ACrewAIAdapter()
-
-        from .a2a_core import A2AToolDiscovery
 
         discovery = A2AToolDiscovery(
             server_params=server_configs,

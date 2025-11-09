@@ -244,6 +244,51 @@ class TestA2ACrewAIAdapter:
 
         asyncio.run(create_and_test_tool())
 
+    @pytest.mark.asyncio
+    async def test_sync_execution_with_running_loop(self):
+        a2a_tool = A2ATool(
+            name="sync_tool_running_loop",
+            description="Tool for running loop test",
+            input_schema={"type": "object"}
+        )
+
+        with patch('src.crewai_adapter.A2ASession') as mock_session_class, \
+             patch('src.crewai_adapter.asyncio.get_running_loop') as mock_get_loop, \
+             patch('src.crewai_adapter.asyncio.run') as mock_asyncio_run, \
+             patch('src.crewai_adapter.threading.Thread') as mock_thread_class:
+
+            mock_session = AsyncMock()
+            mock_session.call_tool.return_value = A2ACallToolResult(
+                success=True,
+                result="unused"
+            )
+            mock_session_class.return_value = mock_session
+
+            crewai_tool = await self.adapter.async_adapt(a2a_tool, self.server_params)
+
+            async_result = "threaded result"
+            crewai_tool._execute_async = AsyncMock(return_value=async_result)
+
+            mock_get_loop.return_value = MagicMock()
+            mock_asyncio_run.return_value = async_result
+
+            class ImmediateThread:
+                def __init__(self, target, daemon=True):
+                    self._target = target
+                def start(self):
+                    self._target()
+                def join(self):
+                    return None
+
+            mock_thread_class.side_effect = lambda target, daemon=True: ImmediateThread(target, daemon)
+
+            result = crewai_tool._run()
+
+            assert result == async_result
+            crewai_tool._execute_async.assert_called_once_with()
+            mock_asyncio_run.assert_called_once()
+            mock_thread_class.assert_called_once()
+
 
 class TestCrewAIToolkit:
     """Test the CrewAI Toolkit class"""

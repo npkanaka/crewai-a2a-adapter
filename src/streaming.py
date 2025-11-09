@@ -125,31 +125,51 @@ class StreamingCrew:
         self._setup_tool_wrapping()
 
     def _setup_thought_capture(self):
-        """Set up step callback to capture agent thoughts."""
+        """Prepare storage for per-agent thought callbacks."""
+        self._agent_thought_callbacks: dict[str, Callable[[Any], None]] = {}
+
+    def _make_thought_callback(self, fallback_agent_role: str) -> Callable[[Any], None]:
+        """Create a step callback bound to a specific agent role."""
 
         def step_callback(formatted_answer):
             """Capture thoughts from agent execution."""
             try:
-                # Check if this is an AgentAction with a thought
-                if hasattr(formatted_answer, "thought") and hasattr(formatted_answer, "tool"):
-                    thought = formatted_answer.thought
-                    if thought and thought.strip():
-                        agent_name = "Agent"  # Default fallback
+                thought = getattr(formatted_answer, "thought", None)
+                if not thought:
+                    return
 
-                        # Try to get current agent name
-                        if hasattr(self.crew, "agents") and self.crew.agents:
-                            agent_name = self.crew.agents[0].role
+                thought_text = str(thought).strip()
+                if not thought_text:
+                    return
 
-                        # Queue the thought message
-                        if self._loop:
-                            asyncio.run_coroutine_threadsafe(
-                                self.callback.on_agent_thought(agent_name, thought.strip()),
-                                self._loop,
-                            )
-            except Exception as e:
-                logger.error(f"Error capturing thought: {e}")
+                agent_name = getattr(formatted_answer, "agent_name", None) or getattr(
+                    formatted_answer, "agent_role", None
+                )
 
-        self._thought_callback = step_callback
+                if not agent_name:
+                    agent_obj = getattr(formatted_answer, "agent", None)
+                    if agent_obj is not None:
+                        agent_name = getattr(agent_obj, "role", None) or getattr(
+                            agent_obj, "name", None
+                        )
+
+                agent_name = agent_name or fallback_agent_role or "Agent"
+
+                if self._loop:
+                    asyncio.run_coroutine_threadsafe(
+                        self.callback.on_agent_thought(agent_name, thought_text),
+                        self._loop,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Error capturing thought: %s", exc)
+
+        return step_callback
+
+    def _get_thought_callback(self, agent_role: str) -> Callable[[Any], None]:
+        """Return (and cache) a thought callback for the given agent role."""
+        if agent_role not in self._agent_thought_callbacks:
+            self._agent_thought_callbacks[agent_role] = self._make_thought_callback(agent_role)
+        return self._agent_thought_callbacks[agent_role]
 
     def _setup_tool_wrapping(self):
         """Set up tool execution monitoring."""
@@ -297,7 +317,7 @@ class StreamingCrew:
 
             # Set step callback for thoughts
             if hasattr(agent, "step_callback"):
-                agent.step_callback = self._thought_callback
+                agent.step_callback = self._get_thought_callback(agent.role)
 
         # Set up delegation tool monitoring
         self._wrap_delegation_tools()
@@ -308,7 +328,7 @@ class StreamingCrew:
                 self._wrap_agent_tools(self.crew.manager_agent)
 
                 if hasattr(self.crew.manager_agent, "step_callback"):
-                    self.crew.manager_agent.step_callback = self._thought_callback
+                    self.crew.manager_agent.step_callback = self._get_thought_callback(self.crew.manager_agent.role)
 
                 # Report manager start
                 await self.callback.on_agent_start(

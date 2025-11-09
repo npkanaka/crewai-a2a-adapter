@@ -326,7 +326,7 @@ class TestEndToEndIntegration:
         expected_order = [
             "AGENT_START: Agent1",
             "TOOL_START: Tool1",
-            "TOOL_FINISH: Tool1",
+            "TOOL_FINISH: Tool1 - output",
             "AGENT_FINISH: Agent1",
             "CREW_FINISH: All done"
         ]
